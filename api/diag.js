@@ -22,13 +22,13 @@ export async function GET(request) {
     out.plantilla_cita = await crear({
       name: 'nueva_cita_agendada', language: 'es_MX', category: 'UTILITY',
       components: [{ type: 'BODY',
-        text: 'Nueva cita agendada por WhatsApp: {{1}} reservó {{2}} para el {{3}}. Teléfono del cliente: {{4}}.',
+        text: 'Nueva cita agendada por WhatsApp: {{1}} reservó {{2}} para el {{3}}. Teléfono del cliente: {{4}}. Revisa tu calendario para ver los detalles.',
         example: { body_text: [['Alex', 'Corte de cabello', 'martes 17 de noviembre, 12:00', '+524441234567']] } }],
     });
     out.plantilla_atencion = await crear({
       name: 'cliente_necesita_atencion', language: 'es_MX', category: 'UTILITY',
       components: [{ type: 'BODY',
-        text: 'Un cliente necesita atención en WhatsApp. Teléfono: {{1}}. Motivo: {{2}}.',
+        text: 'Un cliente necesita atención en WhatsApp. Teléfono: {{1}}. Motivo: {{2}}. Respóndele lo antes posible.',
         example: { body_text: [['+524441234567', 'Pregunta por un servicio que no está en la lista']] } }],
     });
   }
