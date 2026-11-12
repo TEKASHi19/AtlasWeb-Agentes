@@ -98,6 +98,7 @@ async function preguntarAClaude(mensajes, telefono, phoneId, ficha = null) {
   const system = dueno ? promptDueno() : promptSistema(undefined, { agendaActiva, ficha });
   const tools = dueno ? herramientasDueno : (agendaActiva ? herramientas : herramientas.filter(h => ['avisar_humano', 'recordar_cliente'].includes(h.name)));
   const msgs = [...mensajes];
+  let reintentoVacio = false;
   for (let vuelta = 0; vuelta < 5; vuelta++) {
     const data = await llamarClaude({
       model: MODELO,
@@ -110,11 +111,12 @@ async function preguntarAClaude(mensajes, telefono, phoneId, ficha = null) {
     if (data.stop_reason !== 'tool_use' || !usos.length) {
       const texto = (data.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
       if (texto) return texto;
-      // A veces, después de usar una herramienta, el modelo termina sin escribir nada: le pedimos que responda.
-      if (vuelta < 4 && msgs.length > mensajes.length) {
-        console.log('Respuesta vacía, pido que responda');
-        msgs.push({ role: 'assistant', content: data.content?.length ? data.content : [{ type: 'text', text: '…' }] });
-        msgs.push({ role: 'user', content: '(Mensaje del sistema: responde ahora al cliente con base en lo que encontraste.)' });
+      // A veces el modelo termina sin escribir nada (antes o después de usar una herramienta): le pedimos que responda.
+      console.warn('Respuesta vacía', { stop_reason: data.stop_reason, vuelta, bloques: (data.content || []).map(c => c.type) });
+      if (vuelta < 4 && !reintentoVacio) {
+        reintentoVacio = true;
+        msgs.push({ role: 'assistant', content: [{ type: 'text', text: '…' }] });
+        msgs.push({ role: 'user', content: '(Mensaje del sistema: tu respuesta salió vacía. Responde ahora al último mensaje del cliente; usa herramientas si las necesitas.)' });
         continue;
       }
       return 'Perdón, tuve un problema. En breve te contesta una persona.';
