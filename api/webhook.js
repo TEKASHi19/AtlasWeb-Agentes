@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { promptSistema } from '../lib/negocio.js';
-import { guardarMensaje, historial, aMensajesClaude } from '../lib/memoria.js';
+import { guardarMensaje, historial, aMensajesClaude, tocarCliente } from '../lib/memoria.js';
 import { googleActivo } from '../lib/google.js';
 import { herramientas, ejecutarHerramienta } from '../lib/agenda.js';
 import { enviarTexto, marcarLeido } from '../lib/whatsapp.js';
@@ -62,9 +62,11 @@ export async function POST(request) {
     if (!nuevo) { console.log('Duplicado ignorado', msg.id); return new Response('ok', { status: 200 }); }
 
     await marcarLeido(phoneId, msg.id);
+    const nombreWhatsapp = value.contacts?.[0]?.profile?.name || null;
+    const ficha = await tocarCliente({ phoneId, telefono: de, nombreWhatsapp });
     const filas = await historial({ phoneId, cliente: de });
     const mensajes = filas.length ? aMensajesClaude(filas) : [{ role: 'user', content: texto }];
-    const respuesta = await preguntarAClaude(mensajes, de, phoneId);
+    const respuesta = await preguntarAClaude(mensajes, de, phoneId, ficha);
     await enviarTexto(phoneId, de, respuesta);
     await guardarMensaje({ phoneId, cliente: de, rol: 'assistant', contenido: respuesta });
     console.log('Respondido a', de, `(historial: ${filas.length})`);
@@ -90,11 +92,11 @@ async function llamarClaude(body) {
 }
 
 // Conversa con Claude; si pide usar la agenda, ejecuta la herramienta y le regresa el resultado.
-async function preguntarAClaude(mensajes, telefono, phoneId) {
+async function preguntarAClaude(mensajes, telefono, phoneId, ficha = null) {
   const agendaActiva = googleActivo();
   const dueno = agendaActiva && esDueno(telefono);
-  const system = dueno ? promptDueno() : promptSistema(undefined, { agendaActiva });
-  const tools = dueno ? herramientasDueno : (agendaActiva ? herramientas : herramientas.filter(h => h.name === 'avisar_humano'));
+  const system = dueno ? promptDueno() : promptSistema(undefined, { agendaActiva, ficha });
+  const tools = dueno ? herramientasDueno : (agendaActiva ? herramientas : herramientas.filter(h => ['avisar_humano', 'recordar_cliente'].includes(h.name)));
   const msgs = [...mensajes];
   for (let vuelta = 0; vuelta < 5; vuelta++) {
     const data = await llamarClaude({
