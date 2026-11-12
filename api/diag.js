@@ -32,6 +32,29 @@ export async function GET(request) {
         example: { body_text: [['+524441234567', 'Pregunta por un servicio que no está en la lista']] } }],
     });
   }
+  if (url.searchParams.get('plantillas2') === '1') {
+    const crear = body => fetch(`${GRAPH}/${waba}/message_templates`, {
+      method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    }).then(j);
+    out.recordatorio = await crear({
+      name: 'recordatorio_cita', language: 'es_MX', category: 'UTILITY',
+      components: [{ type: 'BODY',
+        text: 'Hola, te recordamos la cita de {{1}} ({{2}}) mañana {{3}} en {{4}}. Si necesitas cambiarla o cancelarla, responde a este mensaje.',
+        example: { body_text: [['Ana', 'Corte de cabello', 'a las 4:00 p. m.', 'Estética Norte']] } }],
+    });
+    out.cancelada = await crear({
+      name: 'cita_cancelada', language: 'es_MX', category: 'UTILITY',
+      components: [{ type: 'BODY',
+        text: 'Se canceló una cita por WhatsApp: {{1}}, {{2}}. Teléfono del cliente: {{3}}. El horario quedó libre en tu calendario.',
+        example: { body_text: [['Corte de cabello', 'sábado 21 de noviembre, 4:00 p. m.', '+524441234567']] } }],
+    });
+    out.cambiada = await crear({
+      name: 'cita_cambiada', language: 'es_MX', category: 'UTILITY',
+      components: [{ type: 'BODY',
+        text: 'Un cliente cambió su cita por WhatsApp: {{1}}, antes {{2}}, ahora {{3}}. Teléfono: {{4}}. Ya quedó actualizada en tu calendario.',
+        example: { body_text: [['Tinte', 'viernes 20, 10:00 a. m.', 'sábado 21, 12:00 p. m.', '+524441234567']] } }],
+    });
+  }
   if (url.searchParams.get('estado_plantillas') === '1') {
     out.plantillas = await j(await fetch(`${GRAPH}/${waba}/message_templates?fields=name,status,category,rejected_reason`, { headers: H }));
   }

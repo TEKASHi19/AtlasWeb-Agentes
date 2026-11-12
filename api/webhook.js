@@ -1,12 +1,22 @@
 import crypto from 'node:crypto';
+import { waitUntil } from '@vercel/functions';
 import { promptSistema } from '../lib/negocio.js';
-import { guardarMensaje, historial, aMensajesClaude, tocarCliente } from '../lib/memoria.js';
+import {
+  guardarMensaje, historial, aMensajesClaude, tocarCliente, ultimoMensajeCliente,
+  pausarBot, botPausado, marcarAvisoPrivacidad,
+} from '../lib/memoria.js';
+import { cargarNegocio, conNegocio, getNegocio } from '../lib/config.js';
+import { alertar } from '../lib/alertas.js';
 import { googleActivo } from '../lib/google.js';
 import { herramientas, ejecutarHerramienta } from '../lib/agenda.js';
 import { enviarTexto, marcarLeido } from '../lib/whatsapp.js';
 import { esDueno, promptDueno, herramientasDueno, ejecutarHerramientaDueno } from '../lib/dueno.js';
 
 const MODELO = 'claude-haiku-5-5';
+const ESPERA_MS = 5000;        // espera para juntar mensajes seguidos del mismo cliente
+const PAUSA_AUTO_HORAS = 2;     // si el equipo contesta desde la app, el bot se calla este tiempo con ese cliente
+const normalizar = t => (/^521\d{10}$/.test(t || '') ? '52' + t.slice(3) : t);
+const ocultar = t => (t ? '…' + String(t).slice(-4) : '?');
 
 // GET: Meta llama aquí una sola vez para verificar que el webhook es nuestro.
 export async function GET(request) {
@@ -24,7 +34,6 @@ export async function GET(request) {
 // POST: Meta manda aquí cada mensaje que recibe el número.
 export async function POST(request) {
   const raw = await request.text();
-  console.log('POST webhook recibido:', raw.slice(0, 800));
 
   // Verifica que el aviso de verdad venga de Meta (firma con el App Secret).
   if (process.env.APP_SECRET) {
@@ -40,41 +49,79 @@ export async function POST(request) {
   let body;
   try { body = JSON.parse(raw); } catch { return new Response('ok', { status: 200 }); }
 
-  const value = body?.entry?.[0]?.changes?.[0]?.value;
+  const change = body?.entry?.[0]?.changes?.[0];
+  const value = change?.value;
+  const phoneId = value?.metadata?.phone_number_id || process.env.PHONE_NUMBER_ID;
+
+  // Coexistencia: alguien del equipo contestó desde la app de WhatsApp Business -> el bot se calla con ese cliente.
+  const ecos = value?.message_echoes || [];
+  if (change?.field === 'smb_message_echoes' && ecos.length) {
+    const negocio = await cargarNegocio(phoneId);
+    waitUntil(conNegocio(negocio, phoneId, () => registrarEcos(phoneId, ecos)));
+    return new Response('ok', { status: 200 });
+  }
+
   const msg = value?.messages?.[0];
   // Avisos de estado (entregado, leído) no llevan mensaje: los ignoramos.
   if (!msg) return new Response('ok', { status: 200 });
+  const de = normalizar(msg.from);
+  console.log('Mensaje', { tipo: msg.type, de: ocultar(de) });
 
-  const phoneId = value.metadata?.phone_number_id || process.env.PHONE_NUMBER_ID;
-  // México: WhatsApp manda los números como 521XXXXXXXXXX, pero hay que responder a 52XXXXXXXXXX.
-  const de = /^521\d{10}$/.test(msg.from) ? '52' + msg.from.slice(3) : msg.from;
+  const negocio = await cargarNegocio(phoneId);
+  // Respondemos 200 a Meta de inmediato y seguimos trabajando en segundo plano.
+  waitUntil(conNegocio(negocio, phoneId, () => procesarMensaje({ phoneId, de, msg, value })));
+  return new Response('ok', { status: 200 });
+}
 
+async function registrarEcos(phoneId, ecos) {
+  for (const e of ecos) {
+    const cliente = normalizar(e.to);
+    const texto = e.text?.body || `(${e.type || 'mensaje'})`;
+    await guardarMensaje({ phoneId, cliente, rol: 'assistant', contenido: `(Respondió una persona del equipo) ${texto}`, waId: e.id });
+    await pausarBot({ phoneId, telefono: cliente, horas: PAUSA_AUTO_HORAS });
+    console.log('Eco del equipo: bot en pausa con', ocultar(cliente));
+  }
+}
+
+async function procesarMensaje({ phoneId, de, msg, value }) {
   try {
-    const texto = msg.type === 'text'
-      ? msg.text.body
-      : null;
+    const texto = msg.type === 'text' ? msg.text.body : null;
     if (!texto) {
       await enviarTexto(phoneId, de, 'Por ahora solo puedo leer mensajes de texto. ¿Me lo escribes, porfa?');
-      return new Response('ok', { status: 200 });
+      return;
     }
     // Guarda el mensaje; si ya lo teníamos, Meta lo reenvió y no contestamos dos veces.
     const nuevo = await guardarMensaje({ phoneId, cliente: de, rol: 'user', contenido: texto, waId: msg.id });
-    if (!nuevo) { console.log('Duplicado ignorado', msg.id); return new Response('ok', { status: 200 }); }
-
+    if (!nuevo) { console.log('Duplicado ignorado'); return; }
     await marcarLeido(phoneId, msg.id);
+
     const nombreWhatsapp = value.contacts?.[0]?.profile?.name || null;
     const ficha = await tocarCliente({ phoneId, telefono: de, nombreWhatsapp });
+    if (botPausado(ficha)) { console.log('Bot en pausa con', ocultar(de)); return; }
+
+    // Junta mensajes seguidos: esperamos unos segundos y solo contesta la invocación del último mensaje.
+    await new Promise(r => setTimeout(r, ESPERA_MS));
+    const ultimo = await ultimoMensajeCliente({ phoneId, cliente: de });
+    if (ultimo && ultimo !== msg.id) { console.log('Llegó otro mensaje después; contesta ese'); return; }
+
     const filas = await historial({ phoneId, cliente: de });
     const mensajes = filas.length ? aMensajesClaude(filas) : [{ role: 'user', content: texto }];
-    const respuesta = await preguntarAClaude(mensajes, de, phoneId, ficha);
+    let respuesta = await preguntarAClaude(mensajes, de, phoneId, ficha);
+
+    // Primera vez que escribe: aviso de privacidad breve.
+    const url = getNegocio().avisoPrivacidadUrl;
+    if (url && ficha && !ficha.aviso_privacidad && !esDueno(de)) {
+      respuesta += `\n\nℹ️ Usamos tus datos solo para atenderte y agendar tus citas. Aviso de privacidad: ${url}`;
+      await marcarAvisoPrivacidad(phoneId, de);
+    }
+
     await enviarTexto(phoneId, de, respuesta);
     await guardarMensaje({ phoneId, cliente: de, rol: 'assistant', contenido: respuesta });
-    console.log('Respondido a', de, `(historial: ${filas.length})`);
+    console.log('Respondido', { a: ocultar(de), historial: filas.length });
   } catch (err) {
-    console.error('Error procesando mensaje:', err);
+    await alertar(phoneId, 'Error procesando un mensaje', err.message || err);
+    try { await enviarTexto(phoneId, de, 'Perdón, tuve un problema. En breve te contesta una persona.'); } catch {}
   }
-  // Siempre 200 para que Meta no reintente el mismo mensaje.
-  return new Response('ok', { status: 200 });
 }
 
 async function llamarClaude(body) {
@@ -119,6 +166,7 @@ async function preguntarAClaude(mensajes, telefono, phoneId, ficha = null) {
         msgs.push({ role: 'user', content: '(Mensaje del sistema: tu respuesta salió vacía. Responde ahora al último mensaje del cliente; usa herramientas si las necesitas.)' });
         continue;
       }
+      await alertar(phoneId, 'Respuesta vacía de Claude', JSON.stringify({ stop: data.stop_reason }));
       return 'Perdón, tuve un problema. En breve te contesta una persona.';
     }
     msgs.push({ role: 'assistant', content: data.content });
@@ -127,7 +175,8 @@ async function preguntarAClaude(mensajes, telefono, phoneId, ficha = null) {
       const res = dueno
         ? await ejecutarHerramientaDueno(u.name, u.input)
         : await ejecutarHerramienta(u.name, u.input, telefono, phoneId);
-      console.log('Herramienta', u.name, JSON.stringify(u.input), '->', JSON.stringify(res).slice(0, 300));
+      if (res && res.ok === false && /No pude/.test(res.error || '')) await alertar(phoneId, `Falla en ${u.name}`, res.error);
+      console.log('Herramienta', u.name, '->', res?.ok === false ? `error: ${res.error}` : 'ok');
       resultados.push({ type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(res) });
     }
     msgs.push({ role: 'user', content: resultados });
