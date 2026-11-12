@@ -15,6 +15,26 @@ export async function GET(request) {
     out.suscribir = await j(await fetch(`${GRAPH}/${waba}/subscribed_apps`, { method: 'POST', headers: H }));
   }
   out.apps_suscritas = await j(await fetch(`${GRAPH}/${waba}/subscribed_apps`, { headers: H }));
+  if (url.searchParams.get('plantillas') === '1') {
+    const crear = body => fetch(`${GRAPH}/${waba}/message_templates`, {
+      method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    }).then(j);
+    out.plantilla_cita = await crear({
+      name: 'nueva_cita_agendada', language: 'es_MX', category: 'UTILITY',
+      components: [{ type: 'BODY',
+        text: 'Nueva cita agendada por WhatsApp: {{1}} reservó {{2}} para el {{3}}. Teléfono del cliente: {{4}}.',
+        example: { body_text: [['Alex', 'Corte de cabello', 'martes 17 de noviembre, 12:00', '+524441234567']] } }],
+    });
+    out.plantilla_atencion = await crear({
+      name: 'cliente_necesita_atencion', language: 'es_MX', category: 'UTILITY',
+      components: [{ type: 'BODY',
+        text: 'Un cliente necesita atención en WhatsApp. Teléfono: {{1}}. Motivo: {{2}}.',
+        example: { body_text: [['+524441234567', 'Pregunta por un servicio que no está en la lista']] } }],
+    });
+  }
+  if (url.searchParams.get('estado_plantillas') === '1') {
+    out.plantillas = await j(await fetch(`${GRAPH}/${waba}/message_templates?fields=name,status,category,rejected_reason`, { headers: H }));
+  }
   if (url.searchParams.get('cal') === '1') {
     out.google_activo = googleActivo();
     const f = url.searchParams.get('fecha') || new Date(Date.now() + 86400000).toISOString().slice(0, 10);

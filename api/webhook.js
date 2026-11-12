@@ -3,8 +3,8 @@ import { promptSistema } from '../lib/negocio.js';
 import { guardarMensaje, historial, aMensajesClaude } from '../lib/memoria.js';
 import { googleActivo } from '../lib/google.js';
 import { herramientas, ejecutarHerramienta } from '../lib/agenda.js';
+import { enviarTexto, marcarLeido } from '../lib/whatsapp.js';
 
-const GRAPH = 'https://graph.facebook.com/v24.0';
 const MODELO = 'claude-haiku-5-5';
 
 // GET: Meta llama aquí una sola vez para verificar que el webhook es nuestro.
@@ -63,7 +63,7 @@ export async function POST(request) {
     await marcarLeido(phoneId, msg.id);
     const filas = await historial({ phoneId, cliente: de });
     const mensajes = filas.length ? aMensajesClaude(filas) : [{ role: 'user', content: texto }];
-    const respuesta = await preguntarAClaude(mensajes, de);
+    const respuesta = await preguntarAClaude(mensajes, de, phoneId);
     await enviarTexto(phoneId, de, respuesta);
     await guardarMensaje({ phoneId, cliente: de, rol: 'assistant', contenido: respuesta });
     console.log('Respondido a', de, `(historial: ${filas.length})`);
@@ -89,7 +89,7 @@ async function llamarClaude(body) {
 }
 
 // Conversa con Claude; si pide usar la agenda, ejecuta la herramienta y le regresa el resultado.
-async function preguntarAClaude(mensajes, telefono) {
+async function preguntarAClaude(mensajes, telefono, phoneId) {
   const agendaActiva = googleActivo();
   const msgs = [...mensajes];
   for (let vuelta = 0; vuelta < 5; vuelta++) {
@@ -98,7 +98,7 @@ async function preguntarAClaude(mensajes, telefono) {
       max_tokens: 500,
       system: promptSistema(undefined, { agendaActiva }),
       messages: msgs,
-      ...(agendaActiva ? { tools: herramientas } : {}),
+      tools: agendaActiva ? herramientas : herramientas.filter(h => h.name === 'avisar_humano'),
     });
     const usos = (data.content || []).filter(c => c.type === 'tool_use');
     if (data.stop_reason !== 'tool_use' || !usos.length) {
@@ -108,28 +108,11 @@ async function preguntarAClaude(mensajes, telefono) {
     msgs.push({ role: 'assistant', content: data.content });
     const resultados = [];
     for (const u of usos) {
-      const res = await ejecutarHerramienta(u.name, u.input, telefono);
+      const res = await ejecutarHerramienta(u.name, u.input, telefono, phoneId);
       console.log('Herramienta', u.name, JSON.stringify(u.input), '->', JSON.stringify(res).slice(0, 300));
       resultados.push({ type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(res) });
     }
     msgs.push({ role: 'user', content: resultados });
   }
   return 'Perdón, me enredé revisando la agenda. En breve te contesta una persona.';
-}
-
-async function enviarTexto(phoneId, para, texto) {
-  const r = await fetch(`${GRAPH}/${phoneId}/messages`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messaging_product: 'whatsapp', to: para, type: 'text', text: { body: texto } }),
-  });
-  if (!r.ok) throw new Error(`WhatsApp ${r.status}: ${await r.text()}`);
-}
-
-async function marcarLeido(phoneId, messageId) {
-  await fetch(`${GRAPH}/${phoneId}/messages`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messaging_product: 'whatsapp', status: 'read', message_id: messageId }),
-  }).catch(() => {});
 }
