@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { promptSistema } from '../lib/negocio.js';
+import { guardarMensaje, historial, aMensajesClaude } from '../lib/memoria.js';
 
 const GRAPH = 'https://graph.facebook.com/v24.0';
 const MODELO = 'claude-haiku-5-5';
@@ -46,15 +47,24 @@ export async function POST(request) {
   const de = /^521\d{10}$/.test(msg.from) ? '52' + msg.from.slice(3) : msg.from;
 
   try {
-    await marcarLeido(phoneId, msg.id);
-    let respuesta;
-    if (msg.type === 'text') {
-      respuesta = await preguntarAClaude(msg.text.body);
-    } else {
-      respuesta = 'Por ahora solo puedo leer mensajes de texto. ¿Me lo escribes, porfa?';
+    const texto = msg.type === 'text'
+      ? msg.text.body
+      : null;
+    if (!texto) {
+      await enviarTexto(phoneId, de, 'Por ahora solo puedo leer mensajes de texto. ¿Me lo escribes, porfa?');
+      return new Response('ok', { status: 200 });
     }
+    // Guarda el mensaje; si ya lo teníamos, Meta lo reenvió y no contestamos dos veces.
+    const nuevo = await guardarMensaje({ phoneId, cliente: de, rol: 'user', contenido: texto, waId: msg.id });
+    if (!nuevo) { console.log('Duplicado ignorado', msg.id); return new Response('ok', { status: 200 }); }
+
+    await marcarLeido(phoneId, msg.id);
+    const filas = await historial({ phoneId, cliente: de });
+    const mensajes = filas.length ? aMensajesClaude(filas) : [{ role: 'user', content: texto }];
+    const respuesta = await preguntarAClaude(mensajes);
     await enviarTexto(phoneId, de, respuesta);
-    console.log('Respondido a', de);
+    await guardarMensaje({ phoneId, cliente: de, rol: 'assistant', contenido: respuesta });
+    console.log('Respondido a', de, `(historial: ${filas.length})`);
   } catch (err) {
     console.error('Error procesando mensaje:', err);
   }
@@ -62,7 +72,7 @@ export async function POST(request) {
   return new Response('ok', { status: 200 });
 }
 
-async function preguntarAClaude(texto) {
+async function preguntarAClaude(mensajes) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -74,7 +84,7 @@ async function preguntarAClaude(texto) {
       model: MODELO,
       max_tokens: 400,
       system: promptSistema(),
-      messages: [{ role: 'user', content: texto }],
+      messages: mensajes,
     }),
   });
   if (!r.ok) throw new Error(`Claude ${r.status}: ${await r.text()}`);
