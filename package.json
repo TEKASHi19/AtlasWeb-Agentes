@@ -1,0 +1,6 @@
+{
+  "name": "atlas-agentes",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "22.x" }
+}
