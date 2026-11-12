@@ -106,8 +106,16 @@ async function preguntarAClaude(mensajes, telefono, phoneId) {
     });
     const usos = (data.content || []).filter(c => c.type === 'tool_use');
     if (data.stop_reason !== 'tool_use' || !usos.length) {
-      return (data.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim()
-        || 'Perdón, tuve un problema. En breve te contesta una persona.';
+      const texto = (data.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
+      if (texto) return texto;
+      // A veces, después de usar una herramienta, el modelo termina sin escribir nada: le pedimos que responda.
+      if (vuelta < 4 && msgs.length > mensajes.length) {
+        console.log('Respuesta vacía, pido que responda');
+        msgs.push({ role: 'assistant', content: data.content?.length ? data.content : [{ type: 'text', text: '…' }] });
+        msgs.push({ role: 'user', content: '(Mensaje del sistema: responde ahora al cliente con base en lo que encontraste.)' });
+        continue;
+      }
+      return 'Perdón, tuve un problema. En breve te contesta una persona.';
     }
     msgs.push({ role: 'assistant', content: data.content });
     const resultados = [];
