@@ -4,6 +4,7 @@ import { guardarMensaje, historial, aMensajesClaude } from '../lib/memoria.js';
 import { googleActivo } from '../lib/google.js';
 import { herramientas, ejecutarHerramienta } from '../lib/agenda.js';
 import { enviarTexto, marcarLeido } from '../lib/whatsapp.js';
+import { esDueno, promptDueno, herramientasDueno, ejecutarHerramientaDueno } from '../lib/dueno.js';
 
 const MODELO = 'claude-haiku-5-5';
 
@@ -91,14 +92,17 @@ async function llamarClaude(body) {
 // Conversa con Claude; si pide usar la agenda, ejecuta la herramienta y le regresa el resultado.
 async function preguntarAClaude(mensajes, telefono, phoneId) {
   const agendaActiva = googleActivo();
+  const dueno = agendaActiva && esDueno(telefono);
+  const system = dueno ? promptDueno() : promptSistema(undefined, { agendaActiva });
+  const tools = dueno ? herramientasDueno : (agendaActiva ? herramientas : herramientas.filter(h => h.name === 'avisar_humano'));
   const msgs = [...mensajes];
   for (let vuelta = 0; vuelta < 5; vuelta++) {
     const data = await llamarClaude({
       model: MODELO,
       max_tokens: 500,
-      system: promptSistema(undefined, { agendaActiva }),
+      system,
       messages: msgs,
-      tools: agendaActiva ? herramientas : herramientas.filter(h => h.name === 'avisar_humano'),
+      tools,
     });
     const usos = (data.content || []).filter(c => c.type === 'tool_use');
     if (data.stop_reason !== 'tool_use' || !usos.length) {
@@ -108,7 +112,9 @@ async function preguntarAClaude(mensajes, telefono, phoneId) {
     msgs.push({ role: 'assistant', content: data.content });
     const resultados = [];
     for (const u of usos) {
-      const res = await ejecutarHerramienta(u.name, u.input, telefono, phoneId);
+      const res = dueno
+        ? await ejecutarHerramientaDueno(u.name, u.input)
+        : await ejecutarHerramienta(u.name, u.input, telefono, phoneId);
       console.log('Herramienta', u.name, JSON.stringify(u.input), '->', JSON.stringify(res).slice(0, 300));
       resultados.push({ type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(res) });
     }
