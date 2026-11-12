@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import { promptSistema } from '../lib/negocio.js';
 import { guardarMensaje, historial, aMensajesClaude } from '../lib/memoria.js';
+import { googleActivo } from '../lib/google.js';
+import { herramientas, ejecutarHerramienta } from '../lib/agenda.js';
 
 const GRAPH = 'https://graph.facebook.com/v24.0';
 const MODELO = 'claude-haiku-5-5';
@@ -61,7 +63,7 @@ export async function POST(request) {
     await marcarLeido(phoneId, msg.id);
     const filas = await historial({ phoneId, cliente: de });
     const mensajes = filas.length ? aMensajesClaude(filas) : [{ role: 'user', content: texto }];
-    const respuesta = await preguntarAClaude(mensajes);
+    const respuesta = await preguntarAClaude(mensajes, de);
     await enviarTexto(phoneId, de, respuesta);
     await guardarMensaje({ phoneId, cliente: de, rol: 'assistant', contenido: respuesta });
     console.log('Respondido a', de, `(historial: ${filas.length})`);
@@ -72,7 +74,7 @@ export async function POST(request) {
   return new Response('ok', { status: 200 });
 }
 
-async function preguntarAClaude(mensajes) {
+async function llamarClaude(body) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -80,17 +82,39 @@ async function preguntarAClaude(mensajes) {
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },
-    body: JSON.stringify({
-      model: MODELO,
-      max_tokens: 400,
-      system: promptSistema(),
-      messages: mensajes,
-    }),
+    body: JSON.stringify(body),
   });
   if (!r.ok) throw new Error(`Claude ${r.status}: ${await r.text()}`);
-  const data = await r.json();
-  return data.content?.filter(c => c.type === 'text').map(c => c.text).join('').trim()
-    || 'Perdón, tuve un problema. En breve te contesta una persona.';
+  return r.json();
+}
+
+// Conversa con Claude; si pide usar la agenda, ejecuta la herramienta y le regresa el resultado.
+async function preguntarAClaude(mensajes, telefono) {
+  const agendaActiva = googleActivo();
+  const msgs = [...mensajes];
+  for (let vuelta = 0; vuelta < 5; vuelta++) {
+    const data = await llamarClaude({
+      model: MODELO,
+      max_tokens: 500,
+      system: promptSistema(undefined, { agendaActiva }),
+      messages: msgs,
+      ...(agendaActiva ? { tools: herramientas } : {}),
+    });
+    const usos = (data.content || []).filter(c => c.type === 'tool_use');
+    if (data.stop_reason !== 'tool_use' || !usos.length) {
+      return (data.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim()
+        || 'Perdón, tuve un problema. En breve te contesta una persona.';
+    }
+    msgs.push({ role: 'assistant', content: data.content });
+    const resultados = [];
+    for (const u of usos) {
+      const res = await ejecutarHerramienta(u.name, u.input, telefono);
+      console.log('Herramienta', u.name, JSON.stringify(u.input), '->', JSON.stringify(res).slice(0, 300));
+      resultados.push({ type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(res) });
+    }
+    msgs.push({ role: 'user', content: resultados });
+  }
+  return 'Perdón, me enredé revisando la agenda. En breve te contesta una persona.';
 }
 
 async function enviarTexto(phoneId, para, texto) {
