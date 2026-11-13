@@ -1,9 +1,9 @@
 // Recordatorios automáticos: Vercel lo ejecuta una vez al día (ver vercel.json) y avisa a cada cliente
-// que tiene cita mañana. Usa la plantilla aprobada "recordatorio_cita"; marca el evento para no repetir.
+// que tiene cita mañana y borra las pláticas con más de 90 días. Usa la plantilla aprobada "recordatorio_cita"; marca el evento para no repetir.
 import { listarNegocios, conNegocio, getNegocio } from '../lib/config.js';
 import { listarEventos, marcarEvento, googleActivo } from '../lib/google.js';
 import { enviarPlantilla, enviarTexto } from '../lib/whatsapp.js';
-import { guardarMensaje } from '../lib/memoria.js';
+import { guardarMensaje, borrarMensajesViejos } from '../lib/memoria.js';
 import { alertar } from '../lib/alertas.js';
 
 const TZ = '-06:00';
@@ -23,7 +23,13 @@ export async function GET(request) {
   for (const { phoneId, negocio } of negocios) {
     resumen.push(await conNegocio(negocio, phoneId, () => recordarNegocio(phoneId, prueba)));
   }
-  return Response.json({ ok: true, prueba, resumen });
+  // Limpieza diaria de pláticas viejas (retención prometida en el aviso de privacidad).
+  let borrados = 0;
+  if (!prueba) {
+    try { borrados = await borrarMensajesViejos(); }
+    catch (err) { await alertar(process.env.PHONE_NUMBER_ID, 'Limpieza de mensajes fallida', err.message); }
+  }
+  return Response.json({ ok: true, prueba, resumen, borrados });
 }
 
 async function recordarNegocio(phoneId, prueba) {
