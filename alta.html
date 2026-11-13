@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conecta tu WhatsApp | Atlas Web</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+:root{--bg:#0B0907;--card:#141210;--line:#2a2520;--txt:#F7F5EF;--mute:#B8B0A4;--amber:#F4AD32;--flame:#FF5F1F;--ink:#1F0A02}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 20px 60px;
+  background:radial-gradient(900px 420px at 50% -120px,rgba(255,95,31,.18),transparent 70%),var(--bg)}
+.logo{height:26px;width:auto;fill:var(--txt);margin-bottom:44px}.logo .lA{fill:var(--flame)}
+main{width:100%;max-width:520px}
+h1{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:34px;line-height:1.08;letter-spacing:-.03em;margin:0 0 12px}
+.lead{color:var(--mute);font-size:17px;line-height:1.55;margin:0 0 30px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px}
+.card h2{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;letter-spacing:.01em;margin:0 0 14px;color:var(--amber)}
+ol{margin:0;padding:0;list-style:none;counter-reset:p}
+ol li{counter-increment:p;position:relative;padding:0 0 14px 34px;color:var(--txt);font-size:15.5px;line-height:1.45}
+ol li::before{content:counter(p);position:absolute;left:0;top:0;width:22px;height:22px;border-radius:50%;border:1px solid var(--line);
+  color:var(--mute);font-size:12px;display:grid;place-items:center;font-family:'Space Grotesk',sans-serif}
+ol li small{display:block;color:var(--mute);font-size:13.5px;margin-top:2px}
+label{display:block;font-size:14px;color:var(--mute);margin:22px 0 8px}
+input{width:100%;background:#0f0d0b;border:1px solid var(--line);border-radius:12px;padding:14px 16px;color:var(--txt);font:inherit;font-size:16px;outline:none}
+input:focus{border-color:var(--flame)}
+button{margin-top:22px;width:100%;border:0;border-radius:999px;padding:16px 22px;background:var(--flame);color:var(--ink);
+  font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16.5px;cursor:pointer;transition:transform .15s ease,opacity .15s}
+button:hover{transform:translateY(-1px)}button:disabled{opacity:.45;cursor:default;transform:none}
+.estado{margin-top:18px;font-size:15px;line-height:1.5;min-height:22px;color:var(--mute)}
+.estado.ok{color:#7ddc8e}.estado.err{color:#ff8a65}
+.pie{margin-top:28px;color:var(--mute);font-size:13px;line-height:1.55;text-align:center}
+.pie a{color:var(--txt)}
+</style>
+</head>
+<body>
+<svg class="logo" viewBox="86 375 900 307" role="img" aria-label="Atlas Web"><path class="lA" d="M 197.2 570.6 L 250.7 467.7 L 295.5 553.4 C 261.9 554.4 230.5 559.6 197.2 570.6 M 320.3 497.3 L 313.6 484.5 L 268.6 398.2 C 261.1 383.7 240.4 383.7 232.9 398.2 L 106.1 641.9 C 96.6 660.1 117.1 679.1 134.5 668.4 C 154.3 656.2 174.3 644.9 195.5 634.7 C 249.2 607.7 305.7 591.1 365 584.6 L 341.3 537.7 Z M 320.3 497.3 "/><path d="M 434.8 573.4 C 434.8 588.1 446.7 599.8 460.7 599.9 L 497 600.2 L 497.1 644.3 L 448.5 644.6 C 422.3 642.4 400.5 625.8 392.1 601.1 C 389.6 593.9 387.1 585.6 387.1 577.6 L 387 414.2 L 434.4 414.5 L 434.5 464.7 L 496 464.7 L 496 507.4 L 434.7 507.4 Z M 434.8 573.4 "/><path d="M 565.7 414.1 L 565.8 644.8 L 519.2 644.8 L 519.1 414.2 Z M 565.7 414.1 "/><path d="M 741.4 554 C 741.4 524.5 717.5 500.6 688 500.6 C 658.5 500.6 634.6 524.5 634.6 554 C 634.6 583.5 658.5 607.4 688 607.4 C 717.5 607.4 741.4 583.5 741.4 554 M 742.8 644.6 L 741.7 622.3 C 728.1 641.3 708.7 648.9 686.6 650 C 633.7 652.6 590.2 613.5 587.9 560.4 C 586.1 518.2 610 480.7 649.8 465.7 C 681.1 454 716.6 457.6 744.7 475.3 C 773.6 493.6 788.1 523.7 788 557.3 L 787.8 644.3 Z M 742.8 644.6 "/><path d="M 952.3 634.7 C 925.5 652.5 880.1 654.1 849.6 644.1 C 826.2 636.5 810.9 616.8 810.1 591.7 L 854.7 590.5 C 856.6 600.4 862.8 607.3 872.2 610.7 C 895.7 617.8 931.1 613.9 930.5 592.5 C 930.3 585.3 925.1 578 916.9 576.3 L 881.9 569.2 C 869.2 566.6 856.4 564.4 844.7 559.9 C 823.1 551.4 812.4 531.4 815.8 508.6 C 823.4 458.2 893.7 449.6 938.5 467.2 C 957.4 474.6 969.7 490.4 972.4 511 L 927.8 513 C 925.2 506 921.3 500.1 914.4 497.7 C 890.8 489.7 860.4 494.7 860.4 512.8 C 860.4 518.6 865.6 524.9 872.1 526.3 L 905.5 533.4 C 919.9 536.5 934.3 538.6 947.5 544.2 C 965.2 551.9 975.4 567.1 976.2 585.9 C 977.1 605.8 969.3 623.4 952.3 634.7 "/></svg>
+<main>
+  <h1>Conecta tu WhatsApp al asistente</h1>
+  <p class="lead">Tu número sigue funcionando igual en tu celular. El asistente contesta y agenda por ti, y tú puedes entrar a la plática cuando quieras.</p>
+
+  <section class="card">
+    <h2>Antes de empezar</h2>
+    <ol>
+      <li>Ten a la mano tu celular con <b>WhatsApp Business</b> actualizado.<small>El número debe llevar al menos 7 días usándose en WhatsApp Business.</small></li>
+      <li>Desactiva la <b>verificación en dos pasos</b>.<small>WhatsApp Business → Ajustes → Cuenta → Verificación en dos pasos. La puedes volver a activar al terminar.</small></li>
+      <li>Ten tu cuenta de <b>Facebook</b> o de Meta Business.<small>Meta te pedirá entrar para confirmar que el negocio es tuyo.</small></li>
+    </ol>
+
+    <label for="nombre">Nombre de tu negocio</label>
+    <input id="nombre" autocomplete="organization" placeholder="Ej. Estética Lupita">
+
+    <button id="conectar" disabled>Conectar mi WhatsApp</button>
+    <div id="estado" class="estado" role="status" aria-live="polite">Cargando…</div>
+  </section>
+
+  <p class="pie">Al conectar, aceptas el <a href="https://atlasweb.com.mx/privacidad">aviso de privacidad</a>. ¿Dudas? Escríbeme por WhatsApp al <a href="https://wa.me/524427190412">442 719 0412</a>.</p>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const estado = (txt, tipo = '') => { const e = $('estado'); e.textContent = txt; e.className = 'estado ' + tipo; };
+const invitacion = new URLSearchParams(location.search).get('i');
+let cfg = null, sesion = null;
+
+// Meta avisa por mensaje de la ventana cuando termina el alta (trae los IDs de la cuenta y el número).
+window.addEventListener('message', ev => {
+  if (!/(^|\.)facebook\.com$/.test(new URL(ev.origin).hostname)) return;
+  try {
+    const d = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+    if (d?.type !== 'WA_EMBEDDED_SIGNUP') return;
+    if (String(d.event || '').startsWith('FINISH')) sesion = d.data;
+    else if (d.event === 'CANCEL') estado('Se canceló el proceso. Puedes intentarlo de nuevo cuando quieras.', 'err');
+    else if (d.event === 'ERROR') estado('Meta reportó un error: ' + (d.data?.error_message || 'intenta de nuevo.'), 'err');
+  } catch {}
+});
+
+window.fbAsyncInit = async () => {
+  try {
+    cfg = await fetch('/api/alta').then(r => r.json());
+    if (!invitacion) return estado('Este enlace necesita un código de invitación. Pídeselo a Atlas Web.', 'err');
+    if (!cfg.appId || !cfg.configId) return estado('El alta todavía no está habilitada. Avísale a Atlas Web.', 'err');
+    FB.init({ appId: cfg.appId, autoLogAppEvents: true, xfbml: false, version: cfg.graphVersion });
+    $('conectar').disabled = false;
+    estado('');
+  } catch { estado('No se pudo cargar. Recarga la página.', 'err'); }
+};
+
+$('conectar').addEventListener('click', () => {
+  if (!$('nombre').value.trim()) { $('nombre').focus(); return estado('Escribe el nombre de tu negocio.', 'err'); }
+  $('conectar').disabled = true;
+  estado('Sigue los pasos en la ventana de Meta…');
+  FB.login(resp => {
+    const code = resp?.authResponse?.code;
+    if (!code) { $('conectar').disabled = false; return estado('No se completó la conexión. Puedes intentarlo de nuevo.', 'err'); }
+    terminar(code);
+  }, {
+    config_id: cfg.configId,
+    response_type: 'code',
+    override_default_response_type: true,
+    extras: { setup: {}, featureType: 'whatsapp_business_app_onboarding', sessionInfoVersion: '3' },
+  });
+});
+
+async function terminar(code) {
+  estado('Terminando de conectar…');
+  // El mensaje de Meta con los IDs puede llegar unos segundos después del código.
+  for (let i = 0; i < 20 && !sesion; i++) await new Promise(r => setTimeout(r, 500));
+  if (!sesion?.waba_id || !sesion?.phone_number_id) {
+    $('conectar').disabled = false;
+    return estado('Meta no regresó los datos de tu número. Intenta de nuevo o escríbenos.', 'err');
+  }
+  const r = await fetch('/api/alta', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ invitacion, code, waba_id: sesion.waba_id, phone_number_id: sesion.phone_number_id, nombre: $('nombre').value.trim() }),
+  }).then(r => r.json()).catch(() => ({ ok: false }));
+  if (r.ok) estado('¡Listo! Tu WhatsApp quedó conectado. Te avisamos cuando el asistente esté configurado con tus servicios.', 'ok');
+  else { $('conectar').disabled = false; estado(r.error || 'No se pudo completar. Ya nos llegó el aviso y te contactamos.', 'err'); }
+}
+</script>
+<script async defer crossorigin="anonymous" src="https://connect.facebook.net/es_LA/sdk.js"></script>
+</body>
+</html>
